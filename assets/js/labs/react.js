@@ -387,6 +387,9 @@ function onKeydown(e) {
 
 export function mount() {
   stopAuto();
+  // 播放位置重置回起点，但 traceIndex 有意保留：读者选中的是哪条轨迹属于
+  // 「我上次看到哪」，切去别的实验室再回来应当还在那一条上。
+  // （体积上这也是为什么测试必须显式指定轨迹，不能假定一定是第 0 条。）
   stepIndex = -1;
   document.addEventListener('keydown', onKeydown);
   render();

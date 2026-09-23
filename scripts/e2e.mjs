@@ -603,6 +603,41 @@ try {
     }
   }
 
+  /* 代码块限高是「超长输出不会把页面撑破」的兜底，必须真的会生效。
+     正常视口高度下它根本不触发，所以要专门用矮视口把它逼出来 ——
+     否则这个兜底坏了也没人知道。 */
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: 1400, height: 600, deviceScaleFactor: 1, mobile: false
+  });
+  await cdp.goto(`${BASE}/#/react`, 1600);
+  // 轨迹选择在切页后是保留的，所以显式选回轨迹一：只有它的第 1 步
+  // Observation 足够长，才会触发限高
+  await cdp.evaluate(`document.querySelectorAll('#rlTraceSeg button')[0].click()`);
+  await sleep(420);
+  await cdp.evaluate(`document.querySelector('[data-act="next"]').click()`);
+  await sleep(460);
+  const clamped = await cdp.json(`(() => {
+    const codes = [...document.querySelectorAll('#rlStage .rl-detail pre.code')];
+    const last = codes[codes.length - 1];
+    if (!last) return JSON.stringify({ exists: false });
+    const cs = getComputedStyle(last);
+    return JSON.stringify({
+      exists: true,
+      cap: cs.maxHeight,
+      overflow: cs.overflowY,
+      scrolls: last.scrollHeight > last.clientHeight + 1,
+      full: last.scrollHeight,
+      visible: Math.round(last.getBoundingClientRect().height),
+      blocks: codes.length,
+      counter: (document.querySelector('#rlStage .rl-track-count')?.textContent || '').trim()
+    });
+  })()`);
+  check(clamped.exists && clamped.scrolls && clamped.overflow === 'auto',
+    '矮视口下代码块限高生效并转为内滚（兜底不是摆设）',
+    clamped.exists
+      ? `${clamped.counter} · ${clamped.blocks} 个块 · max-height=${clamped.cap} · 全文 ${clamped.full}px → 可见 ${clamped.visible}px`
+      : '没有代码块');
+
   await cdp.send('Emulation.clearDeviceMetricsOverride');
   await cdp.goto(`${BASE}/#/`, 1200);
 
