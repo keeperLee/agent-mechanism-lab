@@ -84,15 +84,30 @@ jobs:
           done
           echo "  ✓ 关键挂载点齐备"
 
-          # 目录穿越与点文件必须被拒
-          for bad in /../package.json /.gitignore /.nojekyll; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE$bad")
+          # 目录穿越与点文件必须被拒。
+          #
+          # ⚠️ 这里只能用 %2f 编码形式，明文 /../ 测不出任何东西：
+          #    ① curl 默认会在客户端把 /../ 规范化掉（--path-as-is 可关掉）
+          #    ② 就算送出去了，Node 的 new URL() 也会再规范化一次
+          #    两道规范化之后请求变成 /package.json，压根到不了文件系统那层。
+          #    同样地 /%2e%2e/ 会被 URL 解析器按规范当成双点段归一 —— 也是安全的。
+          #    真正能抵达解码逻辑的是 %2f 形式，那才是需要防的向量。
+          for bad in '/..%2fpackage.json' '/..%2f..%2fpackage.json' \
+                     '/assets/..%2fpackage.json' '/.gitignore' '/.nojekyll'; do
+            code=$(curl --path-as-is -s -o /dev/null -w '%{http_code}' "$BASE$bad")
             if [ "$code" = "404" ]; then
               echo "  ✓ $code  $bad（已拒绝）"
             else
               echo "  ✗ $code  $bad 本应被拒绝"; exit 1
             fi
           done
+
+          # 反向确认：合法路径本身可取，否则上一条可能只是「全都 404」的假通过
+          for ok in /package.json /index.html; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE$ok")
+            [ "$code" = "200" ] || { echo "  ✗ $code  $ok 本应可取"; exit 1; }
+          done
+          echo "  ✓ 穿越被拒而合法路径可取（排除假通过）"
 
       # 4) 浏览器交互回归：需要本机浏览器，环境没有时跳过而不阻断
       - name: 安装 Chromium
