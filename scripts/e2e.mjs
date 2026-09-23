@@ -208,6 +208,13 @@ try {
   await cdp.send('Page.enable');
   await cdp.send('Runtime.enable');
 
+  /* 必须显式设定桌面视口。无头浏览器默认是 800×600，窄到会触发响应式折叠，
+     「请求与响应左右并排」这类断言会失败，而失败原因和被测代码毫无关系 ——
+     这种「环境导致的假失败」最耗时，因为它看起来像真的坏了。 */
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: 1280, height: 900, deviceScaleFactor: 1, mobile: false
+  });
+
   /* ---------- 场景 1：首页 ---------- */
   await cdp.goto(`${BASE}/#/`, 1500);
 
@@ -235,80 +242,100 @@ try {
   /* ---------- 场景 2：实验室一 ReAct ---------- */
   await cdp.goto(`${BASE}/#/react`, 1600);
 
-  const rInit = await cdp.json(`(() => {
-    const steps = document.querySelectorAll('#rlStage .rl-step');
-    const track = document.querySelectorAll('#rlStage .rl-track-item');
-    const tokenVal = document.querySelector('#rlControls .ctrl-label .val')?.textContent || '';
+  /* 舞台一次只渲染当前一步。这里读的字段都是为了验证「单步聚焦」真的成立 ——
+     尤其是页面高度必须不随步数增长，那正是「太长、不方便查看」的修复点。 */
+  const RL_STATE = `(() => {
+    const num = (sel) => Number((document.querySelector(sel)?.textContent || '0').replace(/[^0-9]/g, ''));
+    const pair = document.querySelector('#rlStage .rl-pair');
+    const next = document.querySelector('[data-act="next"]');
+    const prev = document.querySelector('[data-act="prev"]');
     return JSON.stringify({
-      steps: steps.length,
-      track: track.length,
-      active: document.querySelectorAll('#rlStage .rl-step.is-active').length,
-      future: document.querySelectorAll('#rlStage .rl-step.is-future').length,
-      tokenVal,
-      hasObservation: !!document.querySelector('#rlStage .rl-step .code'),
-      // 必须同时断言「存在」：元素缺失时 previous 的 ?. 会得到 undefined，
-      // 只判断 !disabled 会让一条本该失败的断言伪通过
-      nextExists: !!document.querySelector('[data-act="next"]'),
-      nextDisabled: document.querySelector('[data-act="next"]')?.disabled === true
+      page: document.documentElement.scrollHeight,
+      track: document.querySelectorAll('#rlStage .rl-track-item').length,
+      detailCards: document.querySelectorAll('#rlStage .rl-detail .rl-step').length,
+      kind: (document.querySelector('#rlStage .rl-kind')?.textContent || '').trim(),
+      title: (document.querySelector('#rlStage .rl-step-title')?.textContent || '').trim(),
+      counter: (document.querySelector('#rlStage .rl-track-count')?.textContent || '').trim(),
+      isStart: !!document.querySelector('#rlStage .rl-tools'),
+      toolCount: document.querySelectorAll('#rlStage .rl-tool').length,
+      codes: document.querySelectorAll('#rlStage .rl-detail pre.code').length,
+      capped: document.querySelectorAll('#rlStage pre.code.is-capped').length,
+      pairCols: pair ? getComputedStyle(pair).gridTemplateColumns.split(' ').length : 0,
+      ctxTotal: num('[data-ctx-total]'),
+      nextExists: !!next, nextDisabled: next ? next.disabled === true : null,
+      prevExists: !!prev, prevDisabled: prev ? prev.disabled === true : null
     });
-  })()`);
+  })()`;
+
+  const rInit = await cdp.json(RL_STATE);
 
   console.log('');
-  console.log('  场景 2 · 实验室一 · ReAct 循环');
-  check(rInit.steps === 4, '轨迹一的四步全部渲染', `实际 ${rInit.steps} 步`);
+  console.log('  场景 2 · 实验室一 · ReAct 循环（单步聚焦）');
   check(rInit.track === 5, '步骤轨道含起点共 5 个节点', `实际 ${rInit.track}`);
-  check(rInit.active === 0 && rInit.future === 4, '初始状态停在起点，四步均为未播放');
-  check(rInit.hasObservation, '步骤里包含 Observation 代码块');
-  check(rInit.nextExists && !rInit.nextDisabled, '「下一步」按钮存在且可用');
+  check(rInit.detailCards === 1, '舞台一次只渲染当前一步', `实际 ${rInit.detailCards} 个详情卡`);
+  check(rInit.isStart && rInit.kind === '起点', '初始停在起点卡片');
+  check(rInit.toolCount === 4, '起点卡列出本轮全部可用工具', `${rInit.toolCount} 个`);
+  check(rInit.capped >= 1, '代码块带限高，单个长 JSON 不会独撑页面', `${rInit.capped} 个限高块`);
+  check(rInit.prevExists && rInit.prevDisabled, '起点时「上一步」已禁用');
+  check(rInit.nextExists && !rInit.nextDisabled, '起点时「下一步」可用');
+  check(rInit.pairCols === 2, '桌面下请求与响应左右两栏并排', `${rInit.pairCols} 栏`);
 
-  // 逐步前进，上下文 token 必须单调递增
-  const tokenSeries = [];
+  // 逐步前进，记录页面高度、标题、上下文 token
+  const series = [];
   for (let i = 0; i < 4; i += 1) {
     await cdp.evaluate(`document.querySelector('[data-act="next"]').click()`);
-    await sleep(220);
-    // 用 data-ctx-total 而不是「第一个 .ctrl-label .val」：控制面板里有多个
-    // 同名结构，靠顺序取值会在改动布局后静默取到别的数字
-    tokenSeries.push(await cdp.evaluate(
-      `Number((document.querySelector('[data-ctx-total]')?.textContent || '0').replace(/[^0-9]/g, ''))`
-    ));
+    await sleep(320);
+    series.push(await cdp.json(RL_STATE));
   }
 
-  const monotonic = tokenSeries.every((v, i) => i === 0 || v > tokenSeries[i - 1]);
-  check(monotonic, '上下文 token 随步数单调递增', tokenSeries.join(' → '));
-  check(tokenSeries[tokenSeries.length - 1] > tokenSeries[0], '末步上下文明显大于起点');
+  check(series.every((s) => s.detailCards === 1), '每步都只渲染一个详情卡，不随步数堆积',
+    series.map((s) => s.detailCards).join(','));
+  check(new Set(series.map((s) => s.title)).size === 4, '四步的标题各不相同',
+    series.map((s) => s.title.slice(0, 10)).join(' | '));
 
-  const rEnd = await cdp.json(`(() => {
-    return JSON.stringify({
-      active: document.querySelectorAll('#rlStage .rl-step.is-active').length,
-      nextExists: !!document.querySelector('[data-act="next"]'),
-      nextDisabled: document.querySelector('[data-act="next"]')?.disabled === true,
-      finalShown: !!document.querySelector('#rlStage .rl-step.is-active .rt-snippet')
-    });
-  })()`);
-  check(rEnd.active === 1, '恰好一步处于激活状态');
-  check(rEnd.nextExists && rEnd.nextDisabled, '走到末步后「下一步」自动禁用');
-  check(rEnd.finalShown, '末步展示最终回答');
+  const heights = [rInit.page, ...series.map((s) => s.page)];
+  const spread = Math.max(...heights) - Math.min(...heights);
+  check(spread < 400, '页面高度基本不随步数变化（「太长」的修复点）',
+    `${heights.join(' → ')}px，波动 ${spread}px`);
 
-  // 切换轨迹应重置到起点，并换掉整组步骤
+  const tokens = series.map((s) => s.ctxTotal);
+  check(tokens.every((v, i) => i === 0 || v > tokens[i - 1]), '上下文 token 随步数单调递增',
+    tokens.join(' → '));
+
+  check(series[0].codes >= 2, '执行步同时展示模型输出与 Observation', `${series[0].codes} 个代码块`);
+  check(series[3].nextExists && series[3].nextDisabled, '走到末步后「下一步」自动禁用');
+  check(/循环终止/.test(series[3].title), '末步标题标明循环终止', series[3].title);
+  check(series[3].codes >= 1, '末步展示最终回答');
+
+  /* 切换轨迹：轨道与详情都要重置，并且新轨迹的报错步要能显示错误标签 */
   await cdp.evaluate(`document.querySelectorAll('#rlTraceSeg button')[1].click()`);
-  await sleep(420);
-  const rSwitch = await cdp.json(`(() => JSON.stringify({
-    steps: document.querySelectorAll('#rlStage .rl-step').length,
-    active: document.querySelectorAll('#rlStage .rl-step.is-active').length,
-    hasErrorTag: !!document.querySelector('#rlStage .tag.is-danger'),
-    title: document.querySelector('#rlStage .rl-step-title')?.textContent || ''
-  }))()`);
-  check(rSwitch.steps === 3, '切换到轨迹二后步骤数变为 3', `实际 ${rSwitch.steps}`);
-  check(rSwitch.active === 0, '切换轨迹后回到起点（不残留上一条的进度）');
-  check(rSwitch.hasErrorTag, '轨迹二展示了工具报错的标签');
+  await sleep(460);
+  const rSwitch = await cdp.json(RL_STATE);
+  check(rSwitch.track === 4, '切换到轨迹二后轨道变为 4 个节点（起点 + 3 步）', `实际 ${rSwitch.track}`);
+  check(rSwitch.isStart, '切换轨迹后回到起点，不残留上一条的进度');
+  check(rSwitch.detailCards === 1, '切换后仍只有一张详情卡');
 
-  // 点轨道节点可跳转
-  await cdp.evaluate(`document.querySelectorAll('#rlStage [data-goto]')[2].click()`);
-  await sleep(220);
-  const rJump = await cdp.evaluate(`document.querySelectorAll('#rlStage .rl-step.is-active').length`);
-  check(rJump === 1, '点击轨道节点可跳到指定步骤');
+  await cdp.evaluate(`document.querySelector('#rlStage [data-goto="0"]').click()`);
+  await sleep(340);
+  const errTag = await cdp.evaluate(
+    `(document.querySelector('#rlStage .tag.is-danger')?.textContent || '').trim()`
+  );
+  const errored = await cdp.json(RL_STATE);
+  check(!!errTag, '轨迹二的报错步展示「工具返回错误」标签', errTag);
+  check(/^第 1 \//.test(errored.counter), '轨道计数器同步到当前步', errored.counter);
 
-  // 自动播放：再次点击要能停下来（定时器泄漏会在这里露出来）
+  /* 键盘 ← → 也要能切换。用真实按键事件，测的是挂在 document 上的那个监听 */
+  const kbBefore = (await cdp.json(RL_STATE)).counter;
+  for (const type of ['keyDown', 'keyUp']) {
+    await cdp.send('Input.dispatchKeyEvent', {
+      type, key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39
+    });
+  }
+  await sleep(340);
+  const kbAfter = (await cdp.json(RL_STATE)).counter;
+  check(kbBefore !== kbAfter, '← → 键可切换步骤', `${kbBefore} → ${kbAfter}`);
+
+  /* 自动播放：再次点击要能停下来（定时器泄漏会在这里露出来） */
   await cdp.evaluate(`document.querySelector('[data-act="autoplay"]').click()`);
   await sleep(160);
   const playingText = await cdp.evaluate(`document.querySelector('[data-act="autoplay"]').textContent.trim()`);
@@ -542,6 +569,20 @@ try {
     return JSON.stringify({ bad });
   })()`;
 
+  /* 窄屏下正文与控制面板的先后次序：控制面板在手机上有一屏多高，
+     排在前面会把正文整个推到下面。 */
+  const ORDER_PROBE = `(() => {
+    const body = document.querySelector('.lab-body');
+    if (!body) return JSON.stringify({ applies: false });
+    const stage = body.querySelector('.rl-stage');
+    const controls = body.querySelector('.lab-controls');
+    return JSON.stringify({
+      applies: !!stage && !!controls,
+      stageFirst: !!stage && !!controls
+        && stage.getBoundingClientRect().top < controls.getBoundingClientRect().top
+    });
+  })()`;
+
   console.log('');
   console.log('  场景 6 · 窄屏（390px）横向溢出与容器内边距');
   const pages = [['#/', '首页'], ['#/react', '实验室一'], ['#/context', '实验室二'], ['#/retrieval', '实验室三']];
@@ -554,6 +595,12 @@ try {
     const p = await cdp.json(PADDING_PROBE);
     check(p.bad.length === 0, `${label} 容器左右内边距未被 padding 简写清零`,
       p.bad.slice(0, 2).join(' | '));
+
+    // 窄屏下正文必须排在控制面板之前
+    const ord = await cdp.json(ORDER_PROBE);
+    if (ord.applies) {
+      check(ord.stageFirst, `${label} 窄屏下正文排在控制面板之前`);
+    }
   }
 
   await cdp.send('Emulation.clearDeviceMetricsOverride');

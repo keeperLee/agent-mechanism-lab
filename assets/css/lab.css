@@ -6,7 +6,29 @@
    实验室一：ReAct 循环
    ------------------------------------------------------------ */
 
-.rl-stage { display: grid; gap: 16px; }
+/* 网格子项的 min-width 默认是 auto，会被内容顶开、不肯收缩 ——
+   窄屏下这里曾被撑到 609px 而溢出视口（视口只有 390px）。
+   两处都要显式处理：自己的隐式列，以及它作为 .lab-body 子项的最小宽度。 */
+.rl-stage {
+  display: grid; gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
+/* 单步聚焦的舞台：轨道吸顶，详情区一次只放一屏。
+   早先四步全部铺开，页面固定 3.2 屏高，点「下一步」只改高亮、不改高度，
+   当前步也不会滚进视野 —— 读者得自己在长页里找它。 */
+.rl-track-wrap {
+  position: sticky; top: 60px; z-index: 6;
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg);
+  padding-bottom: 4px;
+}
+.rl-track-wrap > .rl-track { flex: 1; min-width: 0; }
+.rl-track-count {
+  flex: none; white-space: nowrap;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--text-3);
+}
 
 /* 循环进度条：把「第几轮」具象成一条可点的轨道 */
 .rl-track {
@@ -42,18 +64,32 @@
 
 .rl-track-sep { width: 14px; flex: none; display: grid; place-items: center; color: var(--text-4); font-size: 11px; }
 
-/* 步骤卡片 */
-.rl-steps { display: grid; gap: 12px; }
+/* 步骤卡片：一次只渲染一个 */
+.rl-detail { display: grid; gap: 12px; }
 
 .rl-step {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  transition: border-color .18s var(--ease), box-shadow .18s var(--ease), opacity .18s var(--ease);
 }
-.rl-step.is-active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
-.rl-step.is-future { opacity: .5; }
+/* 当前展示的那一步。单步聚焦下永远只有一个，但保留这个类：
+   它是「哪一步在用强调边框」的唯一出处，以后要做两步对比就靠它区分主次。 */
+.rl-step.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* 换步时给一点位移 + 淡入。内容是在原地替换的，完全静止的话
+   读者会以为「点了没反应」—— 没有变化信号比变化本身更糟。 */
+@keyframes rl-swap {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+.rl-detail > .rl-step { animation: rl-swap .22s var(--ease); }
+@media (prefers-reduced-motion: reduce) {
+  .rl-detail > .rl-step { animation: none; }
+}
 
 .rl-step-head {
   display: flex; align-items: center; gap: 10px;
@@ -80,6 +116,36 @@
 .rl-step-body { padding: 13px 14px; display: grid; gap: 12px; }
 
 .rl-field { display: grid; gap: 6px; }
+
+/* 请求与响应并排：模型输出在左，工具返回在右。
+   上下堆叠时读者要来回滚动才能把两者对上因果关系。 */
+.rl-pair {
+  display: grid; gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .rl-pair { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* 代码块限高：兜底而不是常态。
+   单步聚焦之后页面里只剩一块代码块，所以这个值可以给得宽松 ——
+   限得太紧会让读者在块内滚动，反而更难读。取视口的 52%，上下再夹一下。 */
+.rl-step-body .code.is-capped {
+  max-height: clamp(280px, 52vh, 560px);
+  overflow: auto;
+}
+
+/* 起点卡片里的工具清单 */
+.rl-tools { display: grid; gap: 5px; }
+.rl-tool {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; font-size: 12.5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+}
+.rl-tool-cost { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--text-4); }
 .rl-field-label {
   font-size: 11.5px; font-weight: 620; color: var(--text-3);
   display: flex; align-items: center; gap: 7px;

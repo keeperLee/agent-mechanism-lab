@@ -343,8 +343,14 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
   align-items: start;
   padding-top: 24px; padding-bottom: 60px;
 }
+/* 网格子项默认 min-width: auto，会被内容顶开而不跟随容器 ——
+   窄屏下舞台就被撑到比视口还宽。显式归零，让两列都能收缩。 */
+.lab-body > * { min-width: 0; }
 @media (max-width: 940px) {
   .lab-body { grid-template-columns: minmax(0, 1fr); }
+  /* 窄屏下内容优先：控制面板在手机上有一屏多高，排在前面会把正文整个推到下面，
+     读者要划过一整屏滑块才看到内容。次序调过来，控制面板退到正文之后。 */
+  .lab-body > .rl-stage { order: -1; }
 }
 
 /* 检索实验室要把三列排名并排放下，控制列收窄一点 */

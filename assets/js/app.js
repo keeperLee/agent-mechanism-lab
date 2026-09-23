@@ -199,7 +199,7 @@ function labView(lab) {
       <ul class="teach">${lab.teach.map((t) => `<li>${t}</li>`).join('')}</ul>
     </header>
     <div class="lab-body wrap-lab${lab.wide ? ' is-wide' : ''}">
-      <div id="${lab.controlsId}"></div>
+      <div class="lab-controls" id="${lab.controlsId}"></div>
       <div class="rl-stage" id="${lab.stageId}"></div>
     </div>`;
 }
