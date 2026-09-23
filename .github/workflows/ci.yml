@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 1) JS 语法检查（零依赖，秒级反馈）
+      - name: JS 语法检查
+        run: |
+          fail=0
+          for f in assets/js/*.js assets/js/data/*.js assets/js/labs/*.js scripts/*.mjs; do
+            if out=$(node --check "$f" 2>&1); then
+              echo "  ✓ $f"
+            else
+              echo "  ✗ $f"
+              echo "$out"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      # 2) 内容、结构与算法自检（含教学行为断言）
+      - name: 内容与结构校验
+        run: node scripts/validate.mjs
+
+      # 3) HTTP 冒烟：起真实服务，逐步断言关键资源可取，
+      #    并确认 index.html 里脚本依赖的挂载点都在
+      - name: HTTP 冒烟测试
+        run: |
+          set -e
+          PORT=5199
+          node scripts/serve.mjs "$PORT" &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          BASE="http://127.0.0.1:$PORT"
+
+          for i in $(seq 1 40); do
+            if curl -sf "$BASE/index.html" > /dev/null; then break; fi
+            sleep 0.25
+            if [ "$i" = "40" ]; then echo "  ✗ 服务器未能在 10 秒内就绪"; exit 1; fi
+          done
+          echo "  ✓ 服务器已就绪"
+
+          check() {
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE$1")
+            if [ "$code" = "200" ]; then
+              echo "  ✓ $code  $1"
+            else
+              echo "  ✗ $code  $1"; exit 1
+            fi
+          }
+
+          check /
+          check /index.html
+          check /assets/css/main.css
+          check /assets/css/lab.css
+          check /assets/js/app.js
+          check /assets/js/bm25.js
+          check /assets/js/tokens.js
+          check /assets/js/data/traces.js
+          check /assets/js/data/corpus.js
+          check /assets/js/data/budget.js
+          check /assets/js/labs/react.js
+          check /assets/js/labs/context.js
+          check /assets/js/labs/retrieval.js
+
+          # 首页必须包含脚本依赖的挂载点
+          page=$(curl -s "$BASE/index.html")
+          for id in viewRoot themeBtn boot; do
+            echo "$page" | grep -q "id=\"$id\"" || { echo "  ✗ index.html 缺少挂载点 #$id"; exit 1; }
+          done
+          echo "  ✓ 关键挂载点齐备"
+
+          # 目录穿越与点文件必须被拒
+          for bad in /../package.json /.gitignore /.nojekyll; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE$bad")
+            if [ "$code" = "404" ]; then
+              echo "  ✓ $code  $bad（已拒绝）"
+            else
+              echo "  ✗ $code  $bad 本应被拒绝"; exit 1
+            fi
+          done
+
+      # 4) 浏览器交互回归：需要本机浏览器，环境没有时跳过而不阻断
+      - name: 安装 Chromium
+        id: chrome
+        continue-on-error: true
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq chromium-browser || sudo apt-get install -y -qq chromium
+          which chromium-browser || which chromium
+
+      - name: 浏览器交互回归测试
+        if: steps.chrome.outcome == 'success'
+        run: |
+          set +e
+          export CHROME_PATH="$(which chromium-browser || which chromium)"
+          node scripts/e2e.mjs
+          code=$?
+          # 返回码 2 表示「没有可用浏览器」，属于跳过而不是失败
+          if [ "$code" = "2" ]; then
+            echo "  ⚠ 没有可用浏览器，跳过交互回归（不阻断 CI）"
+            exit 0
+          fi
+          exit $code

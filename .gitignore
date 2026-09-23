@@ -1,0 +1,11 @@
+# 依赖与构建产物（本项目本身零依赖，防误提交）
+node_modules/
+dist/
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log

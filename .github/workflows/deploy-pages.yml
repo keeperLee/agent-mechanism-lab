@@ -1,0 +1,58 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 发布前跑一次完整校验：宁可挡住部署，也不要把坏站点发出去
+      - name: 内容与结构校验
+        run: node scripts/validate.mjs
+
+      - name: 检查部署必需文件
+        run: |
+          set -e
+          # 少了它，Jekyll 会接管站点，行为难以预期
+          test -f .nojekyll || { echo "缺少 .nojekyll"; exit 1; }
+          test -f index.html || { echo "缺少 index.html"; exit 1; }
+          test -d assets/js/labs || { echo "缺少实验室模块目录"; exit 1; }
+          for f in assets/js/data/traces.js assets/js/data/corpus.js assets/js/data/budget.js; do
+            test -f "$f" || { echo "缺少数据模块 $f：实验室会全部空白"; exit 1; }
+          done
+          echo "  ✓ 部署必需文件齐备"
+
+      # 本项目零依赖、无构建步骤，仓库本身就是产物
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,308 @@
+/* ============================================================
+   实验室专用样式：时间线 / 预算条 / 检索排名
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   实验室一：ReAct 循环
+   ------------------------------------------------------------ */
+
+.rl-stage { display: grid; gap: 16px; }
+
+/* 循环进度条：把「第几轮」具象成一条可点的轨道 */
+.rl-track {
+  display: flex; align-items: stretch; gap: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 9px 11px;
+  overflow-x: auto;
+}
+
+.rl-track-item {
+  display: flex; align-items: center; gap: 8px; flex: none;
+  padding: 4px 12px 4px 10px;
+  border: 0; background: transparent;
+  font-family: inherit; font-size: 12.5px; color: var(--text-3);
+  cursor: pointer; border-radius: var(--radius-s);
+  transition: background .16s var(--ease), color .16s var(--ease);
+}
+.rl-track-item:hover { background: var(--surface-3); color: var(--text-2); }
+.rl-track-item[aria-current="true"] { background: var(--accent-soft); color: var(--accent-strong); font-weight: 640; }
+.rl-track-item.is-done { color: var(--text-2); }
+
+.rl-track-dot {
+  width: 20px; height: 20px; flex: none; border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  background: var(--surface-3); color: var(--text-3);
+  border: 1px solid var(--border-strong);
+}
+.rl-track-item.is-done .rl-track-dot { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+.rl-track-item[aria-current="true"] .rl-track-dot { background: var(--accent); color: #fff; border-color: transparent; }
+
+.rl-track-sep { width: 14px; flex: none; display: grid; place-items: center; color: var(--text-4); font-size: 11px; }
+
+/* 步骤卡片 */
+.rl-steps { display: grid; gap: 12px; }
+
+.rl-step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color .18s var(--ease), box-shadow .18s var(--ease), opacity .18s var(--ease);
+}
+.rl-step.is-active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.rl-step.is-future { opacity: .5; }
+
+.rl-step-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.rl-step-title { font-size: 13.5px; font-weight: 620; }
+.rl-step-meta {
+  margin-left: auto; display: flex; align-items: center; gap: 9px;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--text-3);
+}
+
+.rl-kind {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  padding: 2px 7px; border-radius: 5px; letter-spacing: .01em;
+  background: var(--surface-3); color: var(--text-2);
+}
+.rl-kind.k-thought { background: var(--surface-3); color: var(--text-2); }
+.rl-kind.k-action { background: var(--accent-soft); color: var(--accent-strong); }
+.rl-kind.k-observation { background: var(--info-soft); color: var(--info); }
+.rl-kind.k-final { background: var(--ok-soft); color: var(--ok); }
+
+.rl-step-body { padding: 13px 14px; display: grid; gap: 12px; }
+
+.rl-field { display: grid; gap: 6px; }
+.rl-field-label {
+  font-size: 11.5px; font-weight: 620; color: var(--text-3);
+  display: flex; align-items: center; gap: 7px;
+}
+.rl-field-label .val { margin-left: auto; font-family: var(--font-mono); color: var(--text-4); font-weight: 500; }
+
+/* 逐步增长的上下文用量条 */
+.rl-ctx {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11.5px; color: var(--text-3);
+}
+.rl-ctx-bar {
+  flex: 1; height: 7px; border-radius: 999px;
+  background: var(--surface-3); overflow: hidden;
+  display: flex;
+}
+.rl-ctx-bar i { display: block; height: 100%; }
+/* 配色统一由下面的 .s-* 通用类提供：时间线的占用条与图例色块共用同一套颜色 */
+
+/* ------------------------------------------------------------
+   实验室二：上下文预算
+   ------------------------------------------------------------ */
+
+.cb-stage { display: grid; gap: 18px; }
+
+.cb-window {
+  display: flex; align-items: center; gap: 11px;
+  font-size: 12.5px; color: var(--text-3);
+}
+.cb-window-track {
+  position: relative; flex: 1; height: 46px;
+  border-radius: var(--radius);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+}
+.cb-seg {
+  height: 100%; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  color: rgba(255, 255, 255, .95);
+  overflow: hidden;
+  transition: width .22s var(--ease);
+  min-width: 0;
+}
+.cb-seg.is-empty-label { color: transparent; }
+.cb-seg:hover { filter: brightness(1.08); }
+
+/* 分段配色写成独立类，而不是挂在 .cb-seg 下。
+   早先写成 .cb-seg.s-system 时，图例里的 .cb-swatch 拿不到任何颜色，
+   左侧图例的小方块全是空白 —— 这类问题断言查不出来，只有截图能看见。
+   现在进度条、图例色块、时间线占用条共用同一套类。 */
+.s-system { background: #64748b; }
+.s-tools { background: #d97706; }
+.s-retrieval { background: #7c3aed; }
+.s-history { background: #5b5bd6; }
+.s-current { background: #0284c7; }
+.s-output { background: #0d9488; }
+
+.cb-seg.s-spare {
+  background: repeating-linear-gradient(45deg, var(--surface-3), var(--surface-3) 6px, var(--surface-2) 6px, var(--surface-2) 12px);
+}
+
+/* 超限时标出「窗口上限」落在哪：否则整条是满的，看不出究竟超了多少 */
+.cb-limit {
+  position: absolute; top: 0; bottom: 0; width: 2px; z-index: 2;
+  background: var(--text);
+  box-shadow: 0 0 0 2px var(--surface);
+  pointer-events: none;
+}
+
+/* 溢出：整条变红并给出明确提示 */
+.cb-window.is-over .cb-window-track { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(220, 38, 38, .14); }
+
+.cb-legend { display: grid; gap: 2px; }
+.cb-legend-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--radius-s);
+  font-size: 13px;
+}
+.cb-legend-row:hover { background: var(--surface-2); }
+.cb-swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+.cb-legend-name { flex: 1; color: var(--text-2); }
+.cb-legend-name b { color: var(--text); font-weight: 600; }
+.cb-legend-val {
+  font-family: var(--font-mono); font-size: 12.5px; color: var(--text);
+  font-weight: 620; font-variant-numeric: tabular-nums;
+}
+.cb-legend-pct {
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--text-3);
+  width: 46px; text-align: right; font-variant-numeric: tabular-nums;
+}
+
+.cb-legend-row.is-spare .cb-legend-name { color: var(--text-3); }
+.cb-legend-row.is-spare .cb-legend-val { color: var(--text-3); font-weight: 500; }
+
+/* 阈值说明 */
+.cb-note {
+  font-size: 12.5px; color: var(--text-2);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius-s); padding: 11px 13px;
+}
+.cb-note strong { color: var(--text); }
+
+/* ------------------------------------------------------------
+   实验室三：检索与融合
+   ------------------------------------------------------------ */
+
+.rt-grid {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+@media (max-width: 1080px) { .rt-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.rt-col { min-width: 0; }
+
+.rt-col-head {
+  display: flex; align-items: baseline; gap: 8px;
+  margin-bottom: 10px;
+}
+.rt-col-head h3 { font-size: 13.5px; }
+.rt-col-head .sub { font-size: 11.5px; color: var(--text-3); }
+
+.rt-list { display: grid; gap: 7px; }
+
+.rt-item {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  padding: 9px 11px;
+  overflow: hidden;
+  transition: border-color .16s var(--ease);
+}
+.rt-item.is-in-fused { border-color: var(--accent-ring); }
+.rt-item.is-hit { border-color: var(--ok); }
+.rt-item.is-dim { opacity: .45; }
+
+.rt-item-top { display: flex; align-items: center; gap: 8px; }
+
+.rt-rank {
+  width: 20px; height: 20px; flex: none; border-radius: 5px;
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 700;
+  background: var(--surface-3); color: var(--text-3);
+}
+.rt-item.is-in-fused .rt-rank { background: var(--accent-soft); color: var(--accent-strong); }
+
+.rt-title {
+  font-size: 12.5px; color: var(--text); font-weight: 560;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.rt-score {
+  margin-left: auto; flex: none;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.rt-bar {
+  margin-top: 7px; height: 3px; border-radius: 999px;
+  background: var(--surface-3); overflow: hidden;
+}
+.rt-bar i { display: block; height: 100%; background: var(--accent); transition: width .2s var(--ease); }
+.rt-col-vec .rt-bar i { background: #7c3aed; }
+.rt-col-fuse .rt-bar i { background: var(--ok); }
+
+.rt-id {
+  margin-top: 5px;
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--text-4);
+}
+
+/* 融合明细：把 1/(k+rank) 的加法摊开给人看 */
+.rt-math {
+  margin-top: 7px; padding-top: 7px;
+  border-top: 1px dashed var(--border);
+  font-family: var(--font-mono); font-size: 10.8px; color: var(--text-3);
+  line-height: 1.55;
+}
+.rt-math .term { color: var(--text-2); }
+.rt-math .sum { color: var(--accent-strong); font-weight: 700; }
+.rt-math .miss { color: var(--text-4); }
+
+.rt-empty {
+  font-size: 12.5px; color: var(--text-3);
+  padding: 14px; text-align: center;
+  border: 1px dashed var(--border-strong); border-radius: var(--radius-s);
+}
+
+/* 查询输入 */
+.rt-query { display: grid; gap: 8px; }
+.rt-query input { font-family: var(--font-mono); }
+.rt-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.rt-presets button {
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border-strong); background: var(--surface);
+  color: var(--text-2); font-family: inherit; font-size: 11.8px;
+  cursor: pointer;
+}
+.rt-presets button:hover { background: var(--surface-3); color: var(--text); }
+
+/* 命中片段预览 */
+.rt-snippet {
+  margin-top: 8px; padding: 9px 11px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  font-size: 12.5px; color: var(--text-2); line-height: 1.6;
+}
+.rt-snippet b { color: var(--text); font-weight: 620; }
+.rt-snippet mark {
+  background: var(--accent-soft); color: var(--accent-strong);
+  padding: 0 2px; border-radius: 3px; font-weight: 600;
+}
+
+/* 教学提示条 */
+.rt-verdict {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 13px; border-radius: var(--radius-s);
+  font-size: 12.8px; color: var(--text-2);
+  background: var(--info-soft); border: 1px solid var(--border);
+  border-left: 3px solid var(--info);
+}
+.rt-verdict b { color: var(--text); }

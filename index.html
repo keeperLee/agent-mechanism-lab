@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent 机制可视化实验室</title>
+<meta name="description" content="用可操作、可回放的方式讲清 AI Agent 的三处内部机制：ReAct 循环、上下文预算、两路召回与 RRF 融合。纯静态、零依赖、不需要 API Key。">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="Agent 机制可视化实验室">
+<meta property="og:description" content="把 Agent 的内部机制拆开看：ReAct 循环单步回放、上下文预算拆解、真实 BM25 与 RRF 融合。">
+<meta property="og:type" content="website">
+
+<!-- 主题必须在引入样式之前定下来，否则深色模式下会先闪一下白。
+     顺序不能调换：脚本必须在两个 link 之前。 -->
+<script>
+  (function () {
+    try {
+      var k = 'agent-mechanism-lab:theme';
+      var t = localStorage.getItem(k);
+      if (!t) t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = t;
+    } catch (e) {
+      document.documentElement.dataset.theme = 'light';
+    }
+  })();
+</script>
+
+<link rel="stylesheet" href="assets/css/main.css">
+<link rel="stylesheet" href="assets/css/lab.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="#/">
+    <span class="brand-mark">M</span>
+    <span>机制实验室</span>
+  </a>
+  <span class="brand-sub">Agent 内部机制可视化</span>
+
+  <nav class="topnav" aria-label="主导航">
+    <a href="#/" data-nav="">首页</a>
+    <a href="#/react" data-nav="react">ReAct 循环</a>
+    <a href="#/context" data-nav="context">上下文预算</a>
+    <a href="#/retrieval" data-nav="retrieval">检索与融合</a>
+  </nav>
+
+  <button class="icon-btn" id="themeBtn" type="button" aria-label="切换主题">☾</button>
+</header>
+
+<div class="boot" id="boot">正在加载实验室…</div>
+
+<main id="viewRoot"></main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <span>Agent 机制可视化实验室 · 纯静态站点，页面上的执行数据为预置的真实形态样本</span>
+    <span style="margin-left:auto"></span>
+    <a href="https://keeperlee.github.io/ai-space/" target="_blank" rel="noopener noreferrer">← 返回项目门户</a>
+    <a href="https://github.com/keeperLee/agent-learning-platform" target="_blank" rel="noopener noreferrer">Agent 学习平台</a>
+    <a href="https://github.com/keeperLee/agent-mechanism-lab" target="_blank" rel="noopener noreferrer">本仓库源码</a>
+  </div>
+</footer>
+
+<script type="module" src="assets/js/app.js"></script>
+</body>
+</html>

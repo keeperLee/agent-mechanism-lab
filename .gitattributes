@@ -1,0 +1,17 @@
+# 统一换行符，避免 Windows 开发 + Linux CI 之间产生无意义的整文件 diff
+* text=auto
+
+# 明确二进制文件
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff2 binary
+
+# 让 diff 更易读
+*.md diff=markdown
+*.js diff=javascript
+*.css diff=css
+*.yml diff=yaml

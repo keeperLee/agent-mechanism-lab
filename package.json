@@ -1,0 +1,30 @@
+{
+  "name": "agent-mechanism-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent 机制可视化实验室：交互式讲清 ReAct 循环、上下文预算与检索融合",
+  "keywords": [
+    "agent",
+    "llm",
+    "react-loop",
+    "context-engineering",
+    "rag",
+    "rrf",
+    "visualization",
+    "static-site",
+    "github-pages"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "start": "node scripts/serve.mjs",
+    "validate": "node scripts/validate.mjs",
+    "test": "node scripts/validate.mjs",
+    "e2e": "node scripts/e2e.mjs",
+    "predeploy-check": "node scripts/validate.mjs"
+  }
+}
